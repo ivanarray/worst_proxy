@@ -1,4 +1,4 @@
-import socket #кто понял что происходит в програме тово диференцырут
+import socket  # кто понял что происходит в програме тово диференцырут
 import threading
 import typing
 
@@ -6,10 +6,17 @@ packet_size = 6400
 timeout = 1
 
 
-def https(headers, browser):
-    client = socket.socket()
+def get_addr_http(request):
+    return request.decode().split()[1].split('/')[2]
+
+
+def get_addr_https(request):
+    return request.decode().split()[1].split("/")[0].split(":")[0]
+
+
+def https(client, request, browser):
     try:
-        client.connect((headers.split()[1].split("/")[0].split(":")[0], 443))
+        client.connect((get_addr_https(request), 443))
         reply = "HTTP/1.1 200 Connection established\r\n"
         reply += "Proxy-agent: Dota 2\r\n"
         reply += "\r\n"
@@ -23,39 +30,46 @@ def https(headers, browser):
     client.settimeout(timeout)
     while True:
         try:
-            request = browser.recv(packet_size)
-            client.sendall(request)
-        except Exception as err:
+            browser_request = browser.recv(packet_size)
+            client.sendall(browser_request)
+        except socket.error:
             pass
         try:
             reply = client.recv(packet_size)
             browser.sendall(reply)
-        except Exception as err:
+        except socket.error:
             pass
 
-def http(recieved_from_browser, browser):
-    client = socket.socket()
+
+def http(client, request, browser):
     client.settimeout(timeout)
-    dec_req = recieved_from_browser.decode().split()[1]
-    host, port = dec_req.split('/')[2], 80
+    host, port = get_addr_http(request), 80
     client.connect((host, port))
     while True:
-        client.sendall(recieved_from_browser)
+        client.sendall(request)
         rec = client.recv(packet_size)
         browser.send(rec)
 
-def do(upper_socket : socket.socket):
+
+def do(upper_socket: socket.socket):
     while True:
         browser, addr = upper_socket.accept()
         browser.settimeout(timeout)
-        recieved_from_browser = browser.recv(packet_size)
-        if not recieved_from_browser:
+        try:
+            request = browser.recv(packet_size)
+        except socket.timeout:
             continue
-        headers = recieved_from_browser.decode()
-        if "CONNECT" in headers:
-            https(headers, browser)
-        else:
-            http(recieved_from_browser, browser)
+            pass
+        if not request:
+            continue
+        client = socket.socket()
+        try:
+            if "CONNECT" in request.decode():
+                https(client, request, browser)
+            else:
+                http(client, request, browser)
+        except UnicodeDecodeError:
+            pass
 
 
 server = socket.socket()
