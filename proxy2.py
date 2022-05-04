@@ -15,14 +15,9 @@ def get_addr_https(request):
 
 
 def https(client, request, browser):
-    try:
-        client.connect((get_addr_https(request), 443))
-        reply = "HTTP/1.1 200 Connection established\r\n"
-        reply += "Proxy-agent: Dota 2\r\n"
-        reply += "\r\n"
-        browser.sendall(reply.encode())
-    except socket.error as err:
-        pass
+    client.connect((get_addr_https(request), 443))
+    reply = "HTTP/1.1 200 Connection established\r\n\r\n"
+    browser.sendall(reply.encode())
 
     browser.setblocking(True)
     browser.settimeout(timeout)
@@ -43,12 +38,19 @@ def https(client, request, browser):
 
 def http(client, request, browser):
     client.settimeout(timeout)
-    host, port = get_addr_http(request), 80
-    client.connect((host, port))
+    client.connect((get_addr_http(request), 80))
     while True:
-        client.sendall(request)
-        rec = client.recv(packet_size)
-        browser.send(rec)
+        try:
+            client.sendall(request)
+        except socket.error:
+            continue
+            pass
+
+        try:
+            rec = client.recv(packet_size)
+            browser.send(rec)
+        except socket.error:
+            pass
 
 
 def do(upper_socket: socket.socket):
