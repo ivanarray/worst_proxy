@@ -6,10 +6,8 @@ from HttpsProxy import HttpsProxy
 packet_size = 65534
 timeout = 0.5
 
-
-def make_proxy_request(upper_socket):
+def make_proxy_request(browser):
     while True:
-        browser, addr = upper_socket.accept()
         browser.settimeout(timeout)
         try:
             request = browser.recv(packet_size)
@@ -21,6 +19,7 @@ def make_proxy_request(upper_socket):
         client = socket.socket()
         try:
             if "CONNECT" in request.decode():
+
                 HttpsProxy.proxy(client, request, browser, timeout, packet_size)
             else:
                 HttpProxy.proxy(client, request, browser, timeout, packet_size)
@@ -34,5 +33,6 @@ server = socket.socket()
 server.bind(('localhost', 8081))
 server.listen(100)
 while True:
-    thread = threading.Thread(target=make_proxy_request, args=(server,))
+    browser, addr = server.accept()
+    thread = threading.Thread(target=make_proxy_request, args=(browser,))
     thread.start()
