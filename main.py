@@ -1,4 +1,4 @@
-import server
+import server_handler
 import socketserver
 from argparse import ArgumentParser
 
@@ -21,5 +21,5 @@ if __name__ == '__main__':
                         type=int,
                         required=False)
     args = parser.parse_args()
-    with ThreadingTCPServer((args.host, args.port), server.HttpProxyHandler) as server:
+    with ThreadingTCPServer((args.host, args.port), server_handler.HttpProxyHandler) as server:
         server.serve_forever()

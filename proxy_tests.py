@@ -2,7 +2,7 @@ import socket
 import unittest.mock
 from threading import Thread
 
-import server
+import server_handler
 
 
 class ProxyShould(unittest.TestCase):

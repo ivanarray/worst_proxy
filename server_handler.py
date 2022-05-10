@@ -1,7 +1,6 @@
 import re
 import socket
 import socketserver
-import ssl
 
 from connection_type import ConnectionType
 
@@ -45,15 +44,15 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
                 try:
                     data = self.request.recv(self.PACKET_SIZE)
                     remote_server.sendall(data)
-                except socket.timeout:
-                    continue
+                except socket.error:
+                    pass
                 try:
                     rec = remote_server.recv(self.PACKET_SIZE)
                     self.request.sendall(rec)
                     if len(rec) < 1 or len(data) < 1:
                         break
-                except socket.timeout:
-                    break
+                except socket.error:
+                    pass
             except Exception as e:
                 print(e)
                 break
@@ -65,15 +64,17 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
                 try:
                     rec = remote_server.recv(self.PACKET_SIZE)
                     self.request.sendall(rec)
+                    if len(rec) < 1:
+                        break
                 except socket.timeout:
-                    continue
+                    pass
                 try:
                     data = self.request.recv(self.PACKET_SIZE)
                     remote_server.sendall(data)
-                    if len(rec) < 1 or len(data) < 1:
+                    if len(data) < 1:
                         break
                 except socket.timeout:
-                    continue
+                    pass
             except Exception as e:
                 print(e)
                 break
