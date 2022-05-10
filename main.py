@@ -1,8 +1,14 @@
-import server
+import server_handler
+import socketserver
 from argparse import ArgumentParser
 
 packet_size = 65534
 timeout = 0.5
+
+
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -12,6 +18,8 @@ if __name__ == '__main__':
 
     parser.add_argument("-p", dest="port", default=8081,
                         help='Порт, к которому будет производиться подключение',
+                        type=int,
                         required=False)
     args = parser.parse_args()
-    server.HttpProxyServer(args.port, args.host, timeout).run()
+    with ThreadingTCPServer((args.host, args.port), server_handler.HttpProxyHandler) as server:
+        server.serve_forever()
