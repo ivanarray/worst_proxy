@@ -1,88 +1,82 @@
-import socket
 import re
-import threading
+import socket
+import socketserver
+import ssl
 
 from connection_type import ConnectionType
 
 
-class HttpProxyServer:
+class HttpProxyHandler(socketserver.BaseRequestHandler):
     CONNECTION_REPLY = "HTTP/1.1 200 Connection established\r\n\r\n".encode()
-    LINK_REG = re.compile(r'(?<=Host: )(?P<name>[^\n:\r]+)(:(?P<port>\d+))?')
+    LINK_REG = re.compile(r'(?<=Host: )(?P<name>[^\n:\r ]+)(:(?P<port>\d+))?')
     PACKET_SIZE = 65534
+    TIMEOUT = 2
 
-    def __init__(self, port: int, address: str, timeout: float):
-        self.listener = socket.socket()
-        self.listener.bind((address, port))
-        self.is_close = False
-        self.timeout = timeout
+    def handle(self) -> None:
+        try:
+            print(f"connect to {self.client_address}")
+            self.request.settimeout(self.TIMEOUT)
+            data: bytes = self.request.recv(self.PACKET_SIZE)
+            d_data = data.decode()
+            connect_type = self.get_connection_type(d_data)
 
-    def run(self):
-        self.listener.listen(100)
-        print('Сервер запущен')
-        while not self.is_close:
-            server, addr = self.listener.accept()
-            print(f'{addr} connected to proxy')
-            thread = threading.Thread(target=self.make_proxy_request, args=(server,))
-            thread.start()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(self.TIMEOUT)
+                addr = self.parse_address(d_data)
+                name = addr['name']
+                port = addr['port']
+                if port is None:
+                    port = 80 if connect_type is connect_type.HTTP else 443
+                sock.connect((name, int(port)))
+                if connect_type is connect_type.HTTP:
+                    self.handle_http(sock, data)
+                else:
+                    self.handle_https(sock, data)
+        except Exception as e:
+            print(e)
 
-    def make_proxy_request(self, server: socket.socket):
+    def finish(self) -> None:
+        self.request.close()
+
+    def handle_https(self, remote_server: socket.socket, data: bytes):
+        self.request.sendall(self.CONNECTION_REPLY)
         while True:
             try:
-                request = server.recv(self.PACKET_SIZE)
-                if not request:
+                try:
+                    data = self.request.recv(self.PACKET_SIZE)
+                    remote_server.sendall(data)
+                except socket.timeout:
                     continue
-                page = request.decode(errors='ignore')
-                groups = self.parse_address(page)
-                if len(groups) == 0:
-                    continue
-                name = groups['name']
-                port = groups['port']
-                if port:
-                    port = int(port)
-            except socket.timeout:
-                continue
+                try:
+                    rec = remote_server.recv(self.PACKET_SIZE)
+                    self.request.sendall(rec)
+                    if len(rec) < 1 or len(data) < 1:
+                        break
+                except socket.timeout:
+                    break
+            except Exception as e:
+                print(e)
+                break
 
-            server.settimeout(self.timeout)
-            connection_type = self.get_connection_type(page)
-            if connection_type is ConnectionType.HTTPS:
-                self.handle_https(server, name, port) if port else self.handle_https(server, name)
-            else:
-                self.handle_http(server, request, name, port) if port else self.handle_http(server, request, name)
-
-    def handle_https(self, host: socket.socket, address: str, port: int = 443):
-        server = socket.socket()
-        server.connect((address, port))
-        print(f'connect to {address}:{port}')
-        host.sendall(self.CONNECTION_REPLY)
-        server.settimeout(self.timeout)
-        while not self.is_close:
-            try:
-                browser_request = host.recv(self.PACKET_SIZE)
-                server.sendall(browser_request)
-            except socket.error:
-                pass
-            try:
-                reply = server.recv(self.PACKET_SIZE)
-                host.sendall(reply)
-            except socket.error:
-                pass
-
-    def handle_http(self, host: socket.socket, request: bytes, address: str, port: int = 80):
-        server = socket.socket()
-        server.connect((address, port))
-        print(f'connect to {address}:{port}')
-        server.settimeout(self.timeout)
+    def handle_http(self, remote_server: socket.socket, data: bytes):
+        remote_server.sendall(data)
         while True:
             try:
-                server.sendall(request)
-            except socket.error:
-                continue
-
-            try:
-                rec = server.recv(self.PACKET_SIZE)
-                host.send(rec)
-            except socket.error:
-                pass
+                try:
+                    rec = remote_server.recv(self.PACKET_SIZE)
+                    self.request.sendall(rec)
+                except socket.timeout:
+                    continue
+                try:
+                    data = self.request.recv(self.PACKET_SIZE)
+                    remote_server.sendall(data)
+                    if len(rec) < 1 or len(data) < 1:
+                        break
+                except socket.timeout:
+                    continue
+            except Exception as e:
+                print(e)
+                break
 
     def parse_address(self, page: str) -> dict:
         return self.LINK_REG.search(page).groupdict()
