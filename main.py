@@ -12,14 +12,18 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("-ho", dest="host", default='localhost',
+    parser.add_argument('-ho', dest='host', default='localhost',
                         help='Адрес, где будет хоститься прокси',
                         required=False)
 
-    parser.add_argument("-p", dest="port", default=8081,
+    parser.add_argument('-p', dest='port', default=8081,
                         help='Порт, к которому будет производиться подключение',
                         type=int,
                         required=False)
+    parser.add_argument('-d', dest='debug', required=False, action='store_true', help='Режим дебага')
     args = parser.parse_args()
+
+    server_handler.HttpProxyHandler.DEBUG = args.debug
+
     with ThreadingTCPServer((args.host, args.port), server_handler.HttpProxyHandler) as server:
         server.serve_forever()

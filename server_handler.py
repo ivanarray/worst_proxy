@@ -12,10 +12,12 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
     LINK_REG = re.compile(r'(?<=Host: )(?P<name>[^\n:\r ]+)(:(?P<port>\d+))?')
     PACKET_SIZE = 65534
     TIMEOUT = 0.5
+    DEBUG = False
 
     def handle(self) -> None:
         try:
-            print(f'connect to {self.client_address}')
+            if self.DEBUG:
+                print(f'connect to {self.client_address}')
             self.request.settimeout(self.TIMEOUT)
             data: bytes = self.request.recv(self.PACKET_SIZE)
             d_data = data.decode()
@@ -38,7 +40,8 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
                 with sock.dup() as sock_d:
                     self.handle_from_client(sock_d)
         except Exception as e:
-            print(e)
+            if self.DEBUG:
+                print(f'{type(e)}----{e}')
 
     def finish(self) -> None:
         self.request.close()
@@ -59,7 +62,8 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
                 continue
                 pass
             except Exception as e:
-                print(f'{type(e)}----{e}')
+                if self.DEBUG:
+                    print(f'{type(e)}----{e}')
                 return
 
     def handle_from_client(self, remote_server: socket.socket):
@@ -77,7 +81,8 @@ class HttpProxyHandler(socketserver.BaseRequestHandler):
                 errors_count += 1
                 pass
             except Exception as e:
-                print(f'{type(e)}----{e}')
+                if self.DEBUG:
+                    print(f'{type(e)}----{e}')
                 return
 
     def parse_address(self, page: str) -> dict:
